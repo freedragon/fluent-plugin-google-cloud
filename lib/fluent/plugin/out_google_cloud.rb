@@ -116,6 +116,11 @@ module Fluent
         service: 'ec2.amazonaws.com',
         resource_type: 'aws_ec2_instance'
       }.freeze
+      AZURE_CONSTANTS = {
+        # Since there is currently no GCP resource_type=azure_vm_instance
+        service: 'portal.microsoft.com',
+        resource_type: 'azure_aks_node_instance'
+      }.freeze
       ML_CONSTANTS = {
         service: 'ml.googleapis.com',
         resource_type: 'ml_job',
@@ -265,6 +270,10 @@ module Fluent
 
     # Address of the metadata service.
     METADATA_SERVICE_ADDR = '169.254.169.254'.freeze
+
+    
+    # API Version for Azure
+    AZURE_METADATA_API_VERSION = '2018-10-01'.freeze
 
     # Disable this warning to conform to fluentd config_param conventions.
     # rubocop:disable Style/HashSyntax
@@ -1045,6 +1054,7 @@ module Fluent
       OTHER = 0  # Other/unkown platform
       GCE = 1    # Google Compute Engine
       EC2 = 2    # Amazon EC2
+      AZURE = 3  # Microsoft Azure
     end
 
     # Determine what platform we are running on by consulting the metadata
@@ -1065,6 +1075,12 @@ module Fluent
             @log.info 'Detected EC2 platform'
             return Platform::EC2
           end
+        end
+      rescue OpenURI::HTTPError => error
+        response = error.io
+        if response.meta['server'] == 'Microsoft-IIS/10.0'
+          @log.info 'Detected Azure platform'
+          return Platform::AZURE
         end
       rescue StandardError => e
         @log.error 'Failed to access metadata service: ', error: e
@@ -1098,6 +1114,15 @@ module Fluent
       end
 
       @ec2_metadata
+    end
+
+    def fetch_azure_metadata(metadata_path)
+      raise "Called fetch_azure_metadata with platform=#{@platform}" unless
+        @platform == Platform::AZURE
+      # See https://docs.microsoft.com/en-us/azure/virtual-machines/windows/instance-metadata-service
+      open('http://' + METADATA_SERVICE_ADDR + '/metadata/' +
+           metadata_path + '?api-version=' + AZURE_METADATA_API_VERSION + '&format=text',
+           'Metadata' => 'true', &:read)
     end
 
     # Set regexp patterns to parse tags and logs.
@@ -1142,6 +1167,7 @@ module Fluent
     def set_vm_id
       @vm_id ||= fetch_gce_metadata('instance/id') if @platform == Platform::GCE
       @vm_id ||= ec2_metadata['instanceId'] if @platform == Platform::EC2
+      @vm_id ||= fetch_azure_metadata('instance/compute/vmId') if @platform == Platform::AZURE
     rescue StandardError => e
       @log.error 'Failed to obtain vm_id: ', error: e
     end
@@ -1167,6 +1193,18 @@ module Fluent
                          end
       @zone ||= 'aws:' + ec2_metadata[aws_location_key] if
         @platform == Platform::EC2 && ec2_metadata.key?(aws_location_key)
+
+      # Map azure location based on Azure Instance Metadata
+      if @platform == Platform::AZURE
+        azure_location = fetch_azure_metadata('instance/compute/location')
+        azure_zone = fetch_azure_metadata('instance/compute/zone')
+
+        if azure_zone.empty?
+         @zone ||= 'azure:' + azure_location
+        else
+         @zone ||= 'azure:' + azure_location + '-' + azure_zone
+        end
+      end
     rescue StandardError => e
       @log.error 'Failed to obtain location: ', error: e
     end
@@ -1194,6 +1232,9 @@ module Fluent
 
       when Platform::EC2
         return EC2_CONSTANTS[:resource_type]
+
+      when Platform::AZURE
+        return AZURE_CONSTANTS[:resource_type]
 
       when Platform::GCE
         # Resource types determined by @subservice_name config.
