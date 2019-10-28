@@ -64,6 +64,7 @@ module Google
   end
 end
 
+# Resource Types: https://cloud.google.com/logging/docs/api/v2/resource-list
 module Fluent
   # fluentd output plugin for the Stackdriver Logging API
   class GoogleCloudOutput < BufferedOutput
