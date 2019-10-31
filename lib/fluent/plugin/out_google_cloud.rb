@@ -64,6 +64,18 @@ module Google
   end
 end
 
+# FluentLogger exposes the Fluent logger to the gRPC library.
+module FluentLogger
+  def logger
+    $log # rubocop:disable Style/GlobalVars
+  end
+end
+
+# Define a gRPC module-level logger method before grpc/logconfig.rb loads.
+module GRPC
+  extend FluentLogger
+end
+
 # Resource Types: https://cloud.google.com/logging/docs/api/v2/resource-list
 module Fluent
   # fluentd output plugin for the Stackdriver Logging API
@@ -244,7 +256,7 @@ module Fluent
 
     Fluent::Plugin.register_output('google_cloud', self)
 
-    helpers :server
+    helpers :server, :timer
 
     PLUGIN_NAME = 'Fluentd Google Cloud Logging plugin'.freeze
 
@@ -507,6 +519,38 @@ module Fluent
           end
       end
 
+      # Alert on old authentication configuration.
+      unless @auth_method.nil? && @private_key_email.nil? &&
+             @private_key_path.nil? && @private_key_passphrase.nil?
+        extra = []
+        extra << 'auth_method' unless @auth_method.nil?
+        extra << 'private_key_email' unless @private_key_email.nil?
+        extra << 'private_key_path' unless @private_key_path.nil?
+        extra << 'private_key_passphrase' unless @private_key_passphrase.nil?
+
+        raise Fluent::ConfigError,
+              "#{PLUGIN_NAME} no longer supports auth_method.\n" \
+              "Please remove configuration parameters: #{extra.join(' ')}"
+      end
+
+      set_regexp_patterns
+
+      @platform = detect_platform
+
+      # Treat an empty setting of the credentials file path environment variable
+      # as unset. This way the googleauth lib could fetch the credentials
+      # following the fallback path.
+      ENV.delete(CREDENTIALS_PATH_ENV_VAR) if
+        ENV[CREDENTIALS_PATH_ENV_VAR] == ''
+
+      # Set required variables: @project_id, @vm_id, @vm_name and @zone.
+      set_required_metadata_variables
+
+      # Retrieve monitored resource.
+      # Fail over to retrieve monitored resource via the legacy path if we fail
+      # to get it from Metadata Agent.
+      @resource ||= determine_agent_level_monitored_resource_via_legacy
+
       # If monitoring is enabled, register metrics in the default registry
       # and store metric objects for future use.
       if @enable_monitoring
@@ -541,38 +585,6 @@ module Fluent
           'and were retried')
         @ok_code = @use_grpc ? GRPC::Core::StatusCodes::OK : 200
       end
-
-      # Alert on old authentication configuration.
-      unless @auth_method.nil? && @private_key_email.nil? &&
-             @private_key_path.nil? && @private_key_passphrase.nil?
-        extra = []
-        extra << 'auth_method' unless @auth_method.nil?
-        extra << 'private_key_email' unless @private_key_email.nil?
-        extra << 'private_key_path' unless @private_key_path.nil?
-        extra << 'private_key_passphrase' unless @private_key_passphrase.nil?
-
-        raise Fluent::ConfigError,
-              "#{PLUGIN_NAME} no longer supports auth_method.\n" \
-              "Please remove configuration parameters: #{extra.join(' ')}"
-      end
-
-      set_regexp_patterns
-
-      @platform = detect_platform
-
-      # Treat an empty setting of the credentials file path environment variable
-      # as unset. This way the googleauth lib could fetch the credentials
-      # following the fallback path.
-      ENV.delete(CREDENTIALS_PATH_ENV_VAR) if
-        ENV[CREDENTIALS_PATH_ENV_VAR] == ''
-
-      # Set required variables: @project_id, @vm_id, @vm_name and @zone.
-      set_required_metadata_variables
-
-      # Retrieve monitored resource.
-      # Fail over to retrieve monitored resource via the legacy path if we fail
-      # to get it from Metadata Agent.
-      @resource ||= determine_agent_level_monitored_resource_via_legacy
 
       # Set regexp that we should match tags against later on. Using a list
       # instead of a map to ensure order.
@@ -631,6 +643,9 @@ module Fluent
 
     def shutdown
       super
+      # Export metrics on shutdown. This is a best-effort attempt, and it might
+      # fail, for instance if there was a recent write to the same time series.
+      @registry.export unless @registry.nil?
     end
 
     def write(chunk)
@@ -2089,6 +2104,8 @@ module Fluent
     end
 
     def init_api_client
+      # Set up the logger for the auto-generated Google Cloud APIs.
+      Google::Apis.logger = @log
       if @use_grpc
         uri = URI.parse(@logging_api_url)
         host = uri.host
