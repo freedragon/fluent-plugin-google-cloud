@@ -1140,6 +1140,7 @@ module Fluent
       retvalue = open('http://' + METADATA_SERVICE_ADDR + '/metadata/' +
            metadata_path + '?api-version=' + AZURE_METADATA_API_VERSION + '&format=text',
            'Metadata' => 'true', &:read)
+      @log.info retvalue
       retvalue
     end
 
