@@ -1331,6 +1331,15 @@ module Fluent
         labels['aws_account'] = ec2_metadata['accountId'] if
           ec2_metadata.key?('accountId')
         return labels
+
+      # AZURE container.
+      when AZURE_CONSTANTS[:resource_type]
+        raise "Cannot construct a #{type} resource without vm_id and zone" \
+          unless @vm_id && @zone
+        return {
+          'instance_id' => @vm_id,
+          'zone' => @zone
+        }
       end
 
       {}
