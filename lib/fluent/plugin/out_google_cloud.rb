@@ -1158,7 +1158,7 @@ module Fluent
       set_vm_name
       set_location
       
-      @log.info @platform + ', '+ @vm_id + ', '+ @vm_name + ', '+ @zone
+      @log.info @platform, @vm_id, @vm_name, @zone
 
       # All metadata parameters must now be set.
       missing = []
