@@ -1136,12 +1136,10 @@ module Fluent
       raise "Called fetch_azure_metadata with platform=#{@platform}" unless
         @platform == Platform::AZURE
       # See https://docs.microsoft.com/en-us/azure/virtual-machines/windows/instance-metadata-service
-      @log.info 'http://' + METADATA_SERVICE_ADDR + '/metadata/' + metadata_path + '?api-version=' + AZURE_METADATA_API_VERSION + '&format=text'
-      retvalue = open('http://' + METADATA_SERVICE_ADDR + '/metadata/' +
+      # @log.info 'http://' + METADATA_SERVICE_ADDR + '/metadata/' + metadata_path + '?api-version=' + AZURE_METADATA_API_VERSION + '&format=text'
+      open('http://' + METADATA_SERVICE_ADDR + '/metadata/' +
            metadata_path + '?api-version=' + AZURE_METADATA_API_VERSION + '&format=text',
            'Metadata' => 'true', &:read)
-      @log.info retvalue
-      retvalue
     end
 
     # Set regexp patterns to parse tags and logs.
@@ -1159,6 +1157,8 @@ module Fluent
       set_vm_id
       set_vm_name
       set_location
+      
+      @log.info @platform + ', '+ @vm_id + ', '+ @vm_name + ', '+ @zone
 
       # All metadata parameters must now be set.
       missing = []
