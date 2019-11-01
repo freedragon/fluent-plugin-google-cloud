@@ -1136,9 +1136,11 @@ module Fluent
       raise "Called fetch_azure_metadata with platform=#{@platform}" unless
         @platform == Platform::AZURE
       # See https://docs.microsoft.com/en-us/azure/virtual-machines/windows/instance-metadata-service
-      open('http://' + METADATA_SERVICE_ADDR + '/metadata/' +
+      @log.info 'http://' + METADATA_SERVICE_ADDR + '/metadata/' + metadata_path + '?api-version=' + AZURE_METADATA_API_VERSION + '&format=text'
+      retvalue = open('http://' + METADATA_SERVICE_ADDR + '/metadata/' +
            metadata_path + '?api-version=' + AZURE_METADATA_API_VERSION + '&format=text',
            'Metadata' => 'true', &:read)
+      retvalue
     end
 
     # Set regexp patterns to parse tags and logs.
