@@ -613,8 +613,7 @@ module Fluent
         @write_request = method(:write_request_via_rest)
       end
 
-      # if [Platform::GCE, Platform::EC2, Platform::AZURE].include?(@platform)
-      if [Platform::GCE, Platform::EC2].include?(@platform)
+      if [Platform::GCE, Platform::EC2, Platform::AZURE].include?(@platform)
         # Log an informational message containing the Logs viewer URL
         @log.info 'Logs viewer address: https://console.cloud.google.com/logs/',
                   "viewer?project=#{@project_id}&resource=#{@resource.type}/",
@@ -1097,7 +1096,7 @@ module Fluent
         response = error.io
         if response.meta['server'] == 'Microsoft-IIS/10.0'
           @log.info 'Detected Azure platform'
-          return 
+          return Platform::AZURE
           
         end
       rescue StandardError => e
