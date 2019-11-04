@@ -606,6 +606,11 @@ module Fluent
       @resource.labels.freeze
       @common_labels.freeze
 
+      @log.info @resource
+      @log.info @resource.labels
+      @log.info @common_labels
+
+
       if @use_grpc
         @construct_log_entry = method(:construct_log_entry_in_grpc_format)
         @write_request = method(:write_request_via_grpc)
