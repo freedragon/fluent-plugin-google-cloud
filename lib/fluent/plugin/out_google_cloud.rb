@@ -1340,12 +1340,32 @@ module Fluent
         return labels
 
       # AZURE container.
+      # resource: {
+      #   labels: {
+      #    cluster_name: ""    
+      #    location: ""    
+      #    node_name: ""    
+      #    project_id: "tfsm-stackdriver-gke"    
+      #   }
+      #   type: "k8s_node"   
+      #  }
+      # 
+      # resource: {
+      #   labels: {
+      #    location: ""    
+      #    namespace: ""    
+      #    node_id: ""    
+      #    project_id: "tfsm-stackdriver-gke"    
+      #   }
+      #   type: "generic_node"   
+       # }
       when AZURE_CONSTANTS[:resource_type]
         raise "Cannot construct a #{type} resource without vm_id and zone" \
           unless @vm_id && @zone
         return {
           'instance_id' => @vm_id,
-          'zone' => @zone
+          'node_name' => @vm_name,
+          'location' => @zone
         }
       end
 
