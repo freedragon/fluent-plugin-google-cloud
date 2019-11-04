@@ -1363,8 +1363,8 @@ module Fluent
         raise "Cannot construct a #{type} resource without vm_id and zone" \
           unless @vm_id && @zone
         return {
-          'instance_id' => @vm_id,
-          'node_name' => @vm_name,
+          'instance_id' => @vm_name,
+          'node_name' => @vm_id,
           'location' => @zone
         }
       end
