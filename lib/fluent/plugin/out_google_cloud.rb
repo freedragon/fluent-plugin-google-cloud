@@ -131,7 +131,7 @@ module Fluent
       }.freeze
       AZURE_CONSTANTS = {
         # Since there is currently no GCP resource_type=azure_vm_instance
-        resource_type: 'azure_vm_instance'
+        resource_type: 'k8s_node'
         # service: 'portal.microsoft.com',
         # resource_type: 'generic_node'
       }.freeze
