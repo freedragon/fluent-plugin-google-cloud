@@ -1202,6 +1202,14 @@ module Fluent
     # 2. If not, try to retrieve it locally.
     def set_vm_name
       @vm_name ||= Socket.gethostname
+      @vm_name ||=
+                 if @platform == Platform::AZURE
+                   if ENV['HOSTNAME'].to_s.empty?
+                     fetch_azure_metadata('instance/compute/vmId')
+                   else
+                     ENV['HOSTNAME']
+                   end
+                 end
     rescue StandardError => e
       @log.error 'Failed to obtain vm name: ', error: e
     end
@@ -1363,8 +1371,8 @@ module Fluent
         raise "Cannot construct a #{type} resource without vm_id and zone" \
           unless @vm_id && @zone
         return {
-          'instance_id' => @vm_name,
-          'node_name' => @vm_id,
+          'instance_id' => @vm_id,
+          'node_name' => @vm_name,
           'location' => @zone
         }
       end
